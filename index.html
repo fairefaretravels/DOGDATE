@@ -1,618 +1,17 @@
-import React, { useState, useEffect, useCallback } from 'react';
-// import { createClient } from '@supabase/supabase-js'; // This import caused the error
-
-// --- Supabase Configuration ---
-// IMPORTANT: Replace these with your actual Supabase Project URL and anon key!
-const supabaseUrl = "https://zzgfhrjqzjubemzywrkm.supabase.co"; // e.g., "https://xyzabc.supabase.co"
-const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp6Z2Zocmpxemp1YmVtenl3cmttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA2OTgwNDksImV4cCI6MjA2NjI3NDA0OX0.F_9DNaYJfsXchArEPto-0iTmBsdFOU2bFUTdI2GtbiM"; // e.g., "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-
-// NOTE FOR GITHUB/EXTERNAL DEPLOYMENT:
-// The '@supabase/supabase-js' library needs to be available in your project.
-// If you are deploying this to a standard web server or GitHub Pages,
-// you would typically install it via npm/yarn: `npm install @supabase/supabase-js`
-// and ensure your build process bundles it.
-//
-// For a simple single-file HTML, you would usually include it via a CDN script tag
-// in your HTML's <head> section, like:
-// <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-//
-// This React component assumes `supabase` global object is available from such a CDN.
-// If running in an environment that does not provide it, you might need to
-// adjust your hosting environment's index.html or build process.
-
-// Initialize Supabase client
-// This line assumes 'supabase' is globally available, e.g., from a CDN load.
-const supabase = typeof window !== 'undefined' && window.supabase ? window.supabase.createClient(supabaseUrl, supabaseAnonKey) : null;
-
-// Use a fixed appId for data paths, similar to Firebase's `appId` in public collections
-// Note: Supabase doesn't strictly use an 'appId' in paths like Firebase, but for
-// consistency with the previous structure, we'll keep the conceptual pathing.
-const appId = "doggie-date-app-supabase";
-
-// Dummy data for demonstration - used as fallback if Supabase tables are empty
-const dummyDogs = [
-  {
-    id: 'dog1-dummy', // Use a unique ID that won't conflict with UUIDs
-    name: 'Buddy',
-    breed: 'Golden Retriever',
-    age: 3,
-    size: 'Large',
-    energy: 'High',
-    temperament: 'Friendly, playful',
-    photos: [
-      'https://placehold.co/400x300/AEC9FF/000?text=Buddy+1',
-      'https://placehold.co/400x300/B2D8B2/000?text=Buddy+2',
-    ],
-    videos: [],
-    health_checkup: { // Note: Supabase uses snake_case for JSONB keys conventionally
-      date: '2025-01-15',
-      status: 'Healthy, vaccinations up-to-date',
-      details: 'Annual checkup, clear bill of health. Vaccinations: Rabies, DHPP. Dewormed. Next checkup due Jan 2026.',
-    },
-    owner_id: null, // No specific owner for dummy public dogs
-  },
-  {
-    id: 'dog2-dummy',
-    name: 'Bella',
-    breed: 'Poodle',
-    age: 2,
-    size: 'Medium',
-    energy: 'Medium',
-    temperament: 'Calm, smart',
-    photos: [
-      'https://placehold.co/400x300/FFDDC1/000?text=Bella+1',
-      'https://placehold.co/400x300/FFEEDD/000?text=Bella+2',
-    ],
-    videos: [],
-    health_checkup: {
-      date: '2024-11-20',
-      status: 'Healthy, all clear',
-      details: 'Regular checkup, no concerns. Vaccinations: Rabies, Bordetella. Microchipped. Next checkup due Nov 2025.',
-    },
-    owner_id: null,
-  },
-];
-
-const dummyBusinesses = [
-  {
-    id: 'biz1-dummy',
-    name: 'Pawsitively Groomed',
-    type: 'Grooming Salon',
-    address: '123 Pet St, Doggie Town',
-    phone: '555-1234',
-    description: 'Full-service grooming for all breeds. Includes baths, cuts, and nail trims.',
-    is_ad: true, // Use snake_case for table columns
-  },
-  {
-    id: 'biz2-dummy',
-    name: 'Healthy Bites Pet Food',
-    type: 'Pet Supply Store',
-    address: '456 Bone Ave, Doggie Town',
-    phone: '555-5678',
-    description: 'Organic and natural pet foods, toys, and accessories.',
-    is_ad: false,
-  },
-];
-
-const dummyVetsSupplies = [
-  {
-    id: 'vs1-dummy',
-    name: 'Community Animal Hospital',
-    type: 'Veterinary Clinic',
-    address: '101 Healing Rd, Doggie Town',
-    phone: '555-0001',
-    hours: 'Mon-Fri: 9AM-5PM',
-    description: 'Comprehensive veterinary care, emergency services available.',
-  },
-  {
-    id: 'vs2-dummy',
-    name: 'Petco - Doggie Town',
-    type: 'Pet Supply Store',
-    address: '202 Furry Blvd, Doggie Town',
-    phone: '555-0002',
-    hours: 'Mon-Sun: 9AM-9PM',
-    description: 'Wide selection of pet food, toys, and grooming supplies.',
-  },
-];
-
-// Custom Alert/Modal Component
-const CustomAlertModal = ({ message, onClose }) => (
-  <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center p-4 z-50">
-    <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full relative modal-animate">
-      <h3 className="text-xl font-bold text-gray-800 mb-4 text-center">Notification</h3>
-      <p className="text-gray-700 mb-6 text-center">{message}</p>
-      <div className="flex justify-center">
-        <button
-          onClick={onClose}
-          className="btn-main bg-indigo-500 hover:bg-indigo-600"
-        >
-          OK
-        </button>
-      </div>
-    </div>
-  </div>
-);
-
-
-const App = () => {
-  const [view, setView] = useState('home');
-  const [dogs, setDogs] = useState([]); // All public dog profiles
-  const [currentDogIndex, setCurrentDogIndex] = useState(0);
-  const [showHealthModal, setShowHealthModal] = useState(false);
-  const [businesses, setBusinesses] = useState([]);
-  const [vetsSupplies, setVetsSupplies] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filteredVetsSupplies, setFilteredVetsSupplies] = useState([]);
-  const [alertMessage, setAlertMessage] = useState(null); // For custom alert modal
-
-  // State for the current user's dog profile
-  const [myDogProfile, setMyDogProfile] = useState({
-    id: '', // Will be Supabase user.id or a generated UUID if unauthenticated
-    user_id: null, // Crucial for Supabase RLS - the authenticated user's ID
-    name: '',
-    breed: '',
-    age: '',
-    size: '',
-    energy: '',
-    temperament: '',
-    photos: ['https://placehold.co/400x300/DDDDDD/666666?text=Upload+Photo'],
-    videos: [],
-    health_checkup: {
-      date: '',
-      status: '',
-      details: '',
-    },
-  });
-  const [isEditingMyDog, setIsEditingMyDog] = useState(false);
-  const [myLikedDogs, setMyLikedDogs] = useState([]); // Dogs the current user has "liked" (their IDs)
-
-  // Supabase specific states
-  const [userId, setUserId] = useState(null); // Supabase auth.uid
-  const [authReady, setAuthReady] = useState(false); // Indicates if Supabase auth is ready
-
-  // Initialize Supabase Auth Listener
-  useEffect(() => {
-    // Only attempt to set up auth listener if supabase client is initialized
-    if (!supabase) {
-      console.warn("Supabase client not initialized. Ensure Supabase URL and Key are correct, or CDN is loaded.");
-      setAuthReady(true); // Treat as ready but no auth functionality
-      return;
-    }
-
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Supabase Auth Event:', event, 'Session:', session);
-      if (session) {
-        setUserId(session.user.id);
-        console.log("Supabase: User session found:", session.user.id);
-      } else {
-        setUserId(null); // No active session
-        console.log("Supabase: No active user session.");
-      }
-      setAuthReady(true); // Auth listener is ready
-    });
-
-    // Check for existing session on initial load
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setUserId(session.user.id);
-        console.log("Supabase: Initial session check - user ID:", session.user.id);
-      } else {
-        console.log("Supabase: Initial session check - no session.");
-      }
-      // setAuthReady(true); // Set above by authListener, avoid double setting
-    });
-
-    return () => {
-      authListener?.unsubscribe();
-    };
-  }, []); // Empty dependency array means runs once on mount
-
-  // Fetch data from Supabase once auth is ready
-  useEffect(() => {
-    // If supabase client is not initialized, fallback to dummy data.
-    if (!supabase) {
-        console.warn("Supabase client not available, using dummy data.");
-        setDogs(dummyDogs.filter(dog => dog.owner_id !== userId));
-        setBusinesses(dummyBusinesses);
-        setVetsSupplies(dummyVetsSupplies);
-        setFilteredVetsSupplies(dummyVetsSupplies);
-        setMyDogProfile({
-          id: crypto.randomUUID(), // For UI consistency, use a client-side UUID if no real user
-          user_id: null,
-          name: '', breed: '', age: '', size: '', energy: '', temperament: '',
-          photos: ['https://placehold.co/400x300/DDDDDD/666666?text=Upload+Photo'],
-          videos: [],
-          health_checkup: { date: '', status: '', details: '' },
-        });
-        setMyLikedDogs([]);
-        return;
-    }
-
-    if (!authReady) {
-      console.log("Supabase: Waiting for auth to be ready to fetch data.");
-      return;
-    }
-
-    const fetchPublicData = async () => {
-      // Fetch public dogs
-      const { data: fetchedDogs, error: dogsError } = await supabase
-        .from('dogs')
-        .select('*');
-      if (dogsError) {
-        console.error("Supabase: Error fetching public dogs:", dogsError);
-        setDogs(dummyDogs); // Fallback to dummy
-      } else {
-        // Filter out the current user's dog from the public list for swiping
-        const filteredForSwipe = fetchedDogs.filter(dog => dog.owner_id !== userId);
-        setDogs(filteredForSwipe.length > 0 ? filteredForSwipe : dummyDogs);
-      }
-
-      // Fetch businesses
-      const { data: fetchedBusinesses, error: bizError } = await supabase
-        .from('businesses')
-        .select('*');
-      if (bizError) {
-        console.error("Supabase: Error fetching businesses:", bizError);
-        setBusinesses(dummyBusinesses);
-      } else {
-        setBusinesses(fetchedBusinesses.length > 0 ? fetchedBusinesses : dummyBusinesses);
-      }
-
-      // Fetch vets and supplies
-      const { data: fetchedVetsSupplies, error: vetsError } = await supabase
-        .from('vets_supplies')
-        .select('*');
-      if (vetsError) {
-        console.error("Supabase: Error fetching vets/supplies:", vetsError);
-        setVetsSupplies(dummyVetsSupplies);
-        setFilteredVetsSupplies(dummyVetsSupplies);
-      } else {
-        setVetsSupplies(fetchedVetsSupplies.length > 0 ? fetchedVetsSupplies : dummyVetsSupplies);
-        setFilteredVetsSupplies(fetchedVetsSupplies.length > 0 ? fetchedVetsSupplies : dummyVetsSupplies);
-      }
-    };
-
-    const fetchPrivateData = async () => {
-      if (!userId) {
-        // If not authenticated, private data cannot be fetched due to RLS
-        setMyDogProfile({
-          id: crypto.randomUUID(), // For UI consistency, use a client-side UUID if no real user
-          user_id: null,
-          name: '', breed: '', age: '', size: '', energy: '', temperament: '',
-          photos: ['https://placehold.co/400x300/DDDDDD/666666?text=Upload+Photo'],
-          videos: [],
-          health_checkup: { date: '', status: '', details: '' },
-        });
-        setMyLikedDogs([]);
-        return;
-      }
-
-      // Fetch user's own dog profile
-      const { data: myDogData, error: myDogError } = await supabase
-        .from('user_dogs')
-        .select('*')
-        .eq('user_id', userId)
-        .single(); // Use .single() as there should only be one dog per user
-      if (myDogError && myDogError.code !== 'PGRST116') { // PGRST116 means no rows found
-        console.error("Supabase: Error fetching user's dog profile:", myDogError);
-      } else if (myDogData) {
-        setMyDogProfile(myDogData);
-        console.log("Supabase: Fetched user's dog profile.");
-      } else {
-        setMyDogProfile(prev => ({
-          ...prev,
-          id: prev.id || crypto.randomUUID(), // Keep previous ID if set, otherwise new UUID
-          user_id: userId, // Ensure userId is set
-          name: '', breed: '', age: '', size: '', energy: '', temperament: '',
-          photos: ['https://placehold.co/400x300/DDDDDD/666666?text=Upload+Photo'],
-          videos: [],
-          health_checkup: { date: '', status: '', details: '' },
-        }));
-        console.log("Supabase: User's dog profile not found, set default.");
-      }
-
-      // Fetch user's liked dogs
-      const { data: likedDogsData, error: likedDogsError } = await supabase
-        .from('liked_dogs')
-        .select('liked_dog_id') // Select only the ID of the liked dog
-        .eq('liker_user_id', userId);
-      if (likedDogsError) {
-        console.error("Supabase: Error fetching user's liked dogs:", likedDogsError);
-      } else {
-        const likedDogIds = likedDogsData.map(item => item.liked_dog_id);
-        setMyLikedDogs(likedDogIds);
-        console.log("Supabase: Fetched user's liked dogs:", likedDogIds);
-      }
-    };
-
-    fetchPublicData();
-    fetchPrivateData();
-
-    // Optional: Initial population of dummy data if tables are empty
-    const populateInitialData = async () => {
-        // Only run this if Supabase config is valid
-        if (supabaseUrl === "YOUR_SUPABASE_URL" || supabaseAnonKey === "YOUR_SUPABASE_ANON_KEY") {
-            console.warn("Supabase: Dummy API keys detected. Skipping initial data population.");
-            return;
-        }
-
-        const { data: dogsCount, error: dogsCountError } = await supabase.from('dogs').select('count', { count: 'exact' });
-        if (!dogsCountError && dogsCount.count === 0) {
-            console.log("Supabase: Populating dummy public dogs.");
-            await supabase.from('dogs').insert(dummyDogs);
-        }
-
-        const { data: bizCount, error: bizCountError } = await supabase.from('businesses').select('count', { count: 'exact' });
-        if (!bizCountError && bizCount.count === 0) {
-            console.log("Supabase: Populating dummy businesses.");
-            await supabase.from('businesses').insert(dummyBusinesses);
-        }
-
-        const { data: vetsCount, error: vetsCountError } = await supabase.from('vets_supplies').select('count', { count: 'exact' });
-        if (!vetsCountError && vetsCount.count === 0) {
-            console.log("Supabase: Populating dummy vets and supplies.");
-            await supabase.from('vets_supplies').insert(dummyVetsSupplies);
-        }
-    };
-    populateInitialData();
-
-
-  }, [authReady, userId]); // Re-run when auth state changes or userId is updated
-
-  // Handle search for vets and supplies
-  useEffect(() => {
-    const filtered = vetsSupplies.filter(item =>
-      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.address.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-    setFilteredVetsSupplies(filtered);
-  }, [searchQuery, vetsSupplies]);
-
-
-  const currentDog = dogs[currentDogIndex];
-
-  // Function to handle swiping left (Nope)
-  const swipeLeft = () => {
-    setCurrentDogIndex((prevIndex) => (prevIndex + 1) % dogs.length);
-  };
-
-  // Function to handle swiping right (Like)
-  const swipeRight = async () => {
-    if (!supabase) {
-        setAlertMessage("Supabase client not initialized. Cannot like dog.");
-        return;
-    }
-    if (!userId) {
-      setAlertMessage("You need to be logged in to like dogs! (Currently using anonymous mode for demo)");
-      return;
-    }
-    if (!currentDog || !currentDog.id) {
-        setAlertMessage("No dog selected to like.");
-        return;
-    }
-    if (currentDog.owner_id === userId) {
-        setAlertMessage("You can't like your own dog!");
-        setCurrentDogIndex((prevIndex) => (prevIndex + 1) % dogs.length);
-        return;
-    }
-
-    if (myLikedDogs.includes(currentDog.id)) {
-        setAlertMessage(`You've already liked ${currentDog.name}!`);
-        setCurrentDogIndex((prevIndex) => (prevIndex + 1) % dogs.length);
-        return;
-    }
-
-    try {
-      // Store the liked dog's ID in the user's private liked_dogs table
-      const { error } = await supabase
-        .from('liked_dogs')
-        .insert([
-          { liker_user_id: userId, liked_dog_id: currentDog.id }
-        ]);
-
-      if (error) {
-        console.error("Supabase: Error liking dog:", error);
-        setAlertMessage("Failed to like dog. Please check Supabase RLS and try again.");
-      } else {
-        setAlertMessage(`You liked ${currentDog.name}!`);
-        console.log(`Supabase: Liked ${currentDog.name}! (ID: ${currentDog.id})`);
-        // Manually add to myLikedDogs state for immediate UI update
-        setMyLikedDogs(prev => [...prev, currentDog.id]);
-      }
-
-      setCurrentDogIndex((prevIndex) => (prevIndex + 1) % dogs.length);
-    } catch (error) {
-      console.error("Supabase: Unexpected error during like operation:", error);
-      setAlertMessage("An unexpected error occurred. Please try again.");
-    }
-  };
-
-  // Handler for updating user's dog profile form fields
-  const handleMyDogProfileChange = (e) => {
-    const { name, value } = e.target;
-    if (name.startsWith('health_checkup.')) { // Note: using snake_case for JSONB keys
-      setMyDogProfile(prev => ({
-        ...prev,
-        health_checkup: {
-          ...prev.health_checkup,
-          [name.split('.')[1]]: value
-        }
-      }));
-    } else {
-      setMyDogProfile(prev => ({ ...prev, [name]: value }));
-    }
-  };
-
-  // Handler for saving user's dog profile to Supabase
-  const saveMyDogProfile = async () => {
-    if (!supabase) {
-        setAlertMessage("Supabase client not initialized. Cannot save profile.");
-        return;
-    }
-    if (!userId) {
-      setAlertMessage("You need to be logged in to save your dog's profile!");
-      return;
-    }
-    if (!myDogProfile.name || !myDogProfile.breed) {
-      setAlertMessage("Please fill in your dog's name and breed.");
-      return;
-    }
-
-    // Prepare data, ensuring correct Supabase schema (snake_case for columns)
-    const dogData = {
-      user_id: userId,
-      name: myDogProfile.name,
-      breed: myDogProfile.breed,
-      age: parseInt(myDogProfile.age) || null, // Convert to int, handle empty
-      size: myDogProfile.size,
-      energy: myDogProfile.energy,
-      temperament: myDogProfile.temperament,
-      photos: myDogProfile.photos,
-      videos: myDogProfile.videos,
-      health_checkup: myDogProfile.health_checkup,
-    };
-
-    try {
-      // Try to update existing profile first
-      const { data: updateData, error: updateError } = await supabase
-        .from('user_dogs')
-        .update(dogData)
-        .eq('user_id', userId)
-        .select();
-
-      if (updateError && updateError.code !== 'PGRST116') { // PGRST116 means no rows updated
-        console.error("Supabase: Error updating user's dog profile:", updateError);
-        // If not found, try inserting
-        const { data: insertData, error: insertError } = await supabase
-          .from('user_dogs')
-          .insert(dogData)
-          .select(); // Select the inserted data
-
-        if (insertError) {
-          console.error("Supabase: Error inserting user's dog profile:", insertError);
-          setAlertMessage("Failed to save profile. Please check Supabase RLS.");
-          return;
-        } else {
-            setMyDogProfile(insertData[0]); // Update state with inserted data
-            // Also update the public dogs table
-            await supabase.from('dogs').upsert({ ...insertData[0], owner_id: userId }, { onConflict: 'id' });
-            setAlertMessage("Your dog's profile created successfully!");
-        }
-      } else if (updateData && updateData.length > 0) {
-        setMyDogProfile(updateData[0]); // Update state with updated data
-        // Also update the public dogs table
-        await supabase.from('dogs').upsert({ ...updateData[0], owner_id: userId }, { onConflict: 'id' });
-        setAlertMessage("Your dog's profile updated successfully!");
-      } else {
-          // This case means update returned no rows, implies it didn't exist, so try insert
-          const { data: insertData, error: insertError } = await supabase
-            .from('user_dogs')
-            .insert(dogData)
-            .select();
-
-          if (insertError) {
-            console.error("Supabase: Error inserting user's dog profile:", insertError);
-            setAlertMessage("Failed to save profile. Please check Supabase RLS.");
-            return;
-          } else {
-              setMyDogProfile(insertData[0]);
-              await supabase.from('dogs').upsert({ ...insertData[0], owner_id: userId }, { onConflict: 'id' });
-              setAlertMessage("Your dog's profile created successfully!");
-          }
-      }
-
-      setIsEditingMyDog(false);
-      console.log("Supabase: User's dog profile saved successfully!");
-    } catch (error) {
-      console.error("Supabase: Unexpected error saving profile:", error);
-      setAlertMessage("An unexpected error occurred while saving. Please try again.");
-    }
-  };
-
-
-  const DogProfileCard = ({ dog }) => (
-    <div className="bg-white rounded-xl shadow-lg p-6 max-w-sm mx-auto my-4 transform transition-all duration-300 hover:scale-105 card-animate">
-      <div className="relative h-64 w-full bg-gray-100 rounded-lg overflow-hidden mb-4 image-placeholder">
-        <img
-          src={dog.photos && dog.photos[0] ? dog.photos[0] : 'https://placehold.co/400x300/CCCCCC/000?text=Dog+Image+Error'}
-          alt={`${dog.name}`}
-          className="w-full h-full object-cover"
-          onError={(e) => { e.target.onerror = null; e.target.src="https://placehold.co/400x300/CCCCCC/000?text=Dog+Image+Error"; }}
-        />
-        {/* Placeholder for video icon if video exists */}
-        {dog.videos && dog.videos.length > 0 && (
-          <div className="absolute bottom-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full text-xs">
-            <svg className="w-4 h-4 inline-block mr-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd"></path></svg> Video
-          </div>
-        )}
-      </div>
-      <h2 className="text-3xl font-bold text-center text-gray-800 mb-2">{dog.name}</h2>
-      <p className="text-gray-600 text-center text-lg mb-4">{dog.breed}, {dog.age} years old</p>
-
-      <div className="grid grid-cols-2 gap-3 text-sm text-gray-700 mb-4">
-        <div className="flex items-center">
-          <svg className="w-5 h-5 text-indigo-500 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M7 3a1 1 0 00-1 1v1a1 1 0 002 0V4a1 1 0 00-1-1zM9 8a1 1 0 00-1 1v1a1 1 0 002 0V9a1 1 0 00-1-1zM11 3a1 1 0 00-1 1v1a1 1 0 002 0V4a1 1 0 00-1-1z" /><path fillRule="evenodd" d="M12 2H8a2 2 0 00-2 2v2H5a2 2 0 00-2 2v4a2 2 0 002 2h2v2a2 2 0 002 2h4a2 2 0 002-2v-2h2a2 2 0 002-2V8a2 2 0 00-2-2h-1V4a2 2 0 00-2-2zm-5 6a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H8a1 1 0 01-1-1V8z" clipRule="evenodd"></path></svg>
-          Size: {dog.size}
-        </div>
-        <div className="flex items-center">
-          <svg className="w-5 h-5 text-pink-500 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17.555 13.555A8.001 8.001 0 0013 6a8.001 8.001 0 00-4.555 7.555L2 20h16l-2.445-6.445z" /></svg>
-          Energy: {dog.energy}
-        </div>
-        <div className="col-span-2 flex items-center">
-          <svg className="w-5 h-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"></path></svg>
-          Temperament: {dog.temperament}
-        </div>
-      </div>
-
-      <div className="flex justify-center mt-6">
-        <button
-          onClick={() => setShowHealthModal(true)}
-          className="btn-main bg-blue-500 hover:bg-blue-600"
-        >
-          View Health Checkup
-        </button>
-      </div>
-    </div>
-  );
-
-  const HealthCheckupModal = ({ dog, onClose }) => (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full relative modal-animate">
-        <button
-          onClick={onClose}
-          className="absolute top-3 right-3 text-gray-500 hover:text-gray-800 text-2xl font-bold"
-        >
-          &times;
-        </button>
-        <h3 className="text-2xl font-bold text-gray-800 mb-4 text-center">Health Checkup for {dog.name}</h3>
-        {dog.health_checkup && dog.health_checkup.date ? ( // Note: using health_checkup
-          <>
-            <p className="text-gray-700 mb-2">
-              <span className="font-semibold">Last Checkup:</span> {dog.health_checkup.date}
-            </p>
-            <p className="text-gray-700 mb-2">
-              <span className="font-semibold">Status:</span> {dog.health_checkup.status}
-            </p>
-            <p className="text-gray-700 mb-4">
-              <span className="font-semibold">Details:</span> {dog.health_checkup.details}
-            </p>
-          </>
-        ) : (
-          <p className="text-gray-700 mb-4 text-center">No health checkup details available.</p>
-        )}
-        <p className="text-sm text-gray-500 text-center italic">
-          Disclaimer: Health information is provided by owners and should be verified independently.
-        </p>
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 font-inter text-gray-900 flex flex-col items-center">
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doggie Date App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- IMPORTANT: Include React, ReactDOM, and Supabase client libraries from CDNs -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { margin: 0; font-family: 'Inter', sans-serif; }
+        /* Add more global styles if needed */
 
         /* Animations for .card-animate and .modal-animate */
         @keyframes fadeInUp {
@@ -647,7 +46,7 @@ const App = () => {
 
         /* Consistent Button Styling */
         .btn-main {
-            @apply font-bold py-2 px-4 rounded-full shadow-md transition-all duration-300 transform hover:scale-105;
+            font-bold py-2 px-4 rounded-full shadow-md transition-all duration-300 transform hover:scale-105
         }
 
         /* Image Placeholder Styling */
@@ -661,386 +60,992 @@ const App = () => {
             text-align: center;
             border: 2px dashed #d1d5db; /* Dashed border */
         }
-      `}</style>
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
-      {/* Header and Navigation */}
-      <header className="w-full bg-white shadow-md py-4 px-6 flex flex-col sm:flex-row justify-between items-center rounded-b-xl z-10">
-        <h1 className="text-3xl font-bold text-indigo-700 mb-2 sm:mb-0">Doggie Date</h1>
-        <nav className="flex space-x-4">
-          <button
-            onClick={() => setView('home')}
-            className={`px-4 py-2 rounded-full font-semibold transition-all duration-200 ${
-              view === 'home' ? 'bg-indigo-500 text-white shadow-lg' : 'text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            Home
-          </button>
-          <button
-            onClick={() => setView('businesses')}
-            className={`px-4 py-2 rounded-full font-semibold transition-all duration-200 ${
-              view === 'businesses' ? 'bg-indigo-500 text-white shadow-lg' : 'text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            Businesses
-          </button>
-          <button
-            onClick={() => setView('vets')}
-            className={`px-4 py-2 rounded-full font-semibold transition-all duration-200 ${
-              view === 'vets' ? 'bg-indigo-500 text-white shadow-lg' : 'text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            Vets & Supplies
-          </button>
-          <button
-            onClick={() => setView('profile')}
-            className={`px-4 py-2 rounded-full font-semibold transition-all duration-200 ${
-              view === 'profile' ? 'bg-indigo-500 text-white shadow-lg' : 'text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            My Profile
-          </button>
-        </nav>
-      </header>
+    <!-- Main application script -->
+    <script>
+        // --- Supabase Configuration --
+        const supabaseUrl = "https://zzgfhrjqzjubemzywrkm.supabase.co"; // e.g., "https://xyzabc.supabase.co"
+        const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp6Z2Zocmpxemp1YmVtenl3cmttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA2OTgwNDksImV4cCI6MjA2NjI3NDA0OX0.F_9DNaYJfsXchArEPto-0iTmBsdFOU2bFUTdI2GtbiM"
 
-      {/* User ID Display */}
-      {userId && (
-        <div className="bg-yellow-100 text-yellow-800 text-sm p-2 rounded-md mt-4 shadow-sm">
-          Your User ID: <span className="font-mono break-all">{userId}</span>
-        </div>
-      )}
-      {!userId && authReady && (
-        <div className="bg-red-100 text-red-800 text-sm p-2 rounded-md mt-4 shadow-sm">
-          You are not logged in. Profile data cannot be saved.
-          <p className="text-xs italic mt-1">
-            (For full functionality, you'll need to implement Supabase email/password auth
-            and ensure the Supabase client library is loaded globally, e.g., via CDN.)
-          </p>
-        </div>
-      )}
+        // Initialize Supabase client
+        // This relies on 'window.supabase' being available from the CDN script tag above.
+        const supabase = typeof window !== 'undefined' && window.supabase
+            ? window.supabase.createClient(supabaseUrl, supabaseAnonKey)
+            : null;
 
-      {/* Custom Alert Modal */}
-      {alertMessage && <CustomAlertModal message={alertMessage} onClose={() => setAlertMessage(null)} />}
+        const appId = "doggie-date-app-supabase"; // Fixed appId for consistent data paths
 
-      <main className="flex-grow w-full max-w-4xl p-4">
-        {view === 'home' && (
-          <section className="text-center py-8">
-            <h2 className="text-4xl font-extrabold text-gray-800 mb-6">Find Doggie Playdates!</h2>
-            {dogs.length > 0 && currentDog ? (
-              <>
-                <DogProfileCard dog={currentDog} />
-                <div className="flex justify-center space-x-6 mt-8">
-                  <button
-                    onClick={swipeLeft}
-                    className="flex items-center justify-center bg-red-500 hover:bg-red-600 text-white text-xl p-4 rounded-full shadow-lg transition-all duration-300 transform hover:scale-110 focus:outline-none focus:ring-4 focus:ring-red-300"
-                    aria-label="Nope"
-                  >
-                    <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd"></path></svg>
-                  </button>
-                  <button
-                    onClick={swipeRight}
-                    className="flex items-center justify-center bg-green-500 hover:bg-green-600 text-white text-xl p-4 rounded-full shadow-lg transition-all duration-300 transform hover:scale-110 focus:outline-none focus:ring-4 focus:ring-green-300"
-                    aria-label="Like"
-                  >
-                    <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" clipRule="evenodd"></path></svg>
-                  </button>
-                </div>
-                {showHealthModal && currentDog && (
-                  <HealthCheckupModal dog={currentDog} onClose={() => setShowHealthModal(false)} />
-                )}
-              </>
-            ) : (
-              <p className="text-gray-600 text-lg">Loading dog profiles or no dogs available for swiping...</p>
-            )}
-          </section>
-        )}
+        // Dummy data for demonstration - used as fallback if Supabase tables are empty
+        const dummyDogs = [
+          {
+            id: 'dog1-dummy',
+            name: 'Buddy',
+            breed: 'Golden Retriever',
+            age: 3,
+            size: 'Large',
+            energy: 'High',
+            temperament: 'Friendly, playful',
+            photos: [
+              'https://placehold.co/400x300/AEC9FF/000?text=Buddy+1',
+              'https://placehold.co/400x300/B2D8B2/000?text=Buddy+2',
+            ],
+            videos: [],
+            health_checkup: {
+              date: '2025-01-15',
+              status: 'Healthy, vaccinations up-to-date',
+              details: 'Annual checkup, clear bill of health. Vaccinations: Rabies, DHPP. Dewormed. Next checkup due Jan 2026.',
+            },
+            owner_id: null,
+          },
+          {
+            id: 'dog2-dummy',
+            name: 'Bella',
+            breed: 'Poodle',
+            age: 2,
+            size: 'Medium',
+            energy: 'Medium',
+            temperament: 'Calm, smart',
+            photos: [
+              'https://placehold.co/400x300/FFDDC1/000?text=Bella+1',
+              'https://placehold.co/400x300/FFEEDD/000?text=Bella+2',
+            ],
+            videos: [],
+            health_checkup: {
+              date: '2024-11-20',
+              status: 'Healthy, all clear',
+              details: 'Regular checkup, no concerns. Vaccinations: Rabies, Bordetella. Microchipped. Next checkup due Nov 2025.',
+            },
+            owner_id: null,
+          },
+        ];
 
-        {view === 'businesses' && (
-          <section className="py-8">
-            <h2 className="text-4xl font-extrabold text-gray-800 text-center mb-8">Local Dog Businesses</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {businesses.map((business) => (
-                <div
-                  key={business.id}
-                  className={`bg-white rounded-xl shadow-lg p-6 transition-all duration-300 transform hover:scale-105 card-animate ${
-                    business.is_ad ? 'border-4 border-yellow-400 ring-4 ring-yellow-200' : 'border border-gray-200'
-                  }`}
+        const dummyBusinesses = [
+          {
+            id: 'biz1-dummy',
+            name: 'Pawsitively Groomed',
+            type: 'Grooming Salon',
+            address: '123 Pet St, Doggie Town',
+            phone: '555-1234',
+            description: 'Full-service grooming for all breeds. Includes baths, cuts, and nail trims.',
+            is_ad: true,
+          },
+          {
+            id: 'biz2-dummy',
+            name: 'Healthy Bites Pet Food',
+            type: 'Pet Supply Store',
+            address: '456 Bone Ave, Doggie Town',
+            phone: '555-5678',
+            description: 'Organic and natural pet foods, toys, and accessories.',
+            is_ad: false,
+          },
+        ];
+
+        const dummyVetsSupplies = [
+          {
+            id: 'vs1-dummy',
+            name: 'Community Animal Hospital',
+            type: 'Veterinary Clinic',
+            address: '101 Healing Rd, Doggie Town',
+            phone: '555-0001',
+            hours: 'Mon-Fri: 9AM-5PM',
+            description: 'Comprehensive veterinary care, emergency services available.',
+          },
+          {
+            id: 'vs2-dummy',
+            name: 'Petco - Doggie Town',
+            type: 'Pet Supply Store',
+            address: '202 Furry Blvd, Doggie Town',
+            phone: '555-0002',
+            hours: 'Mon-Sun: 9AM-9PM',
+            description: 'Wide selection of pet food, toys, and grooming supplies.',
+          },
+        ];
+
+        // Custom Alert/Modal Component
+        const CustomAlertModal = ({ message, onClose }) => (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full relative modal-animate">
+              <h3 className="text-xl font-bold text-gray-800 mb-4 text-center">Notification</h3>
+              <p className="text-gray-700 mb-6 text-center">{message}</p>
+              <div className="flex justify-center">
+                <button
+                  onClick={onClose}
+                  className="btn-main bg-indigo-500 hover:bg-indigo-600"
                 >
-                  <h3 className="text-xl font-bold text-indigo-700 mb-2">{business.name}</h3>
-                  <p className="text-gray-600 mb-1">Type: {business.type}</p>
-                  <p className="text-gray-600 mb-1">Address: {business.address}</p>
-                  <p className="text-gray-600 mb-4">Phone: {business.phone}</p>
-                  <p className="text-gray-700 text-sm">{business.description}</p>
-                  {business.is_ad && (
-                    <div className="mt-4 text-center text-yellow-700 font-semibold text-sm bg-yellow-100 p-2 rounded-full">
-                      ✨ Advertised Spot ✨
-                    </div>
-                  )}
-                </div>
-              ))}
+                  OK
+                </button>
+              </div>
             </div>
-          </section>
-        )}
+          </div>
+        );
 
-        {view === 'vets' && (
-          <section className="py-8">
-            <h2 className="text-4xl font-extrabold text-gray-800 text-center mb-8">Local Vets & Pet Supplies</h2>
-            <div className="mb-6 flex justify-center">
-              <input
-                type="text"
-                placeholder="Search vets or supplies..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full max-w-md p-3 border border-gray-300 rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {filteredVetsSupplies.length > 0 ? (
-                filteredVetsSupplies.map((item) => (
-                  <div key={item.id} className="bg-white rounded-xl shadow-lg p-6 border border-gray-200 transition-all duration-300 transform hover:scale-105 card-animate">
-                    <h3 className="text-xl font-bold text-indigo-700 mb-2">{item.name}</h3>
-                    <p className="text-gray-600 mb-1">Type: {item.type}</p>
-                    <p className="text-gray-600 mb-1">Address: {item.address}</p>
-                    <p className="text-600 mb-1">Phone: {item.phone}</p>
-                    <p className="text-gray-700 text-sm mt-2">{item.description}</p>
-                    {item.hours && <p className="text-gray-700 text-sm mt-1">Hours: {item.hours}</p>}
+
+        const App = () => {
+          // Use React.useState, React.useEffect, React.useCallback from the global React object
+          const [view, setView] = React.useState('home');
+          const [dogs, setDogs] = React.useState([]); // All public dog profiles
+          const [currentDogIndex, setCurrentDogIndex] = React.useState(0);
+          const [showHealthModal, setShowHealthModal] = React.useState(false);
+          const [businesses, setBusinesses] = React.useState([]);
+          const [vetsSupplies, setVetsSupplies] = React.useState([]);
+          const [searchQuery, setSearchQuery] = React.useState('');
+          const [filteredVetsSupplies, setFilteredVetsSupplies] = React.useState([]);
+          const [alertMessage, setAlertMessage] = React.useState(null); // For custom alert modal
+
+          // State for the current user's dog profile
+          const [myDogProfile, setMyDogProfile] = React.useState({
+            id: '', // Will be Supabase user.id or a generated UUID if unauthenticated
+            user_id: null, // Crucial for Supabase RLS - the authenticated user's ID
+            name: '',
+            breed: '',
+            age: '',
+            size: '',
+            energy: '',
+            temperament: '',
+            photos: ['https://placehold.co/400x300/DDDDDD/666666?text=Upload+Photo'],
+            videos: [],
+            health_checkup: {
+              date: '',
+              status: '',
+              details: '',
+            },
+          });
+          const [isEditingMyDog, setIsEditingMyDog] = React.useState(false);
+          const [myLikedDogs, setMyLikedDogs] = React.useState([]); // Dogs the current user has "liked" (their IDs)
+
+          // Supabase specific states
+          const [userId, setUserId] = React.useState(null); // Supabase auth.uid
+          const [authReady, setAuthReady] = React.useState(false); // Indicates if Supabase auth is ready
+
+          // Initialize Supabase Auth Listener
+          React.useEffect(() => {
+            // Only attempt to set up auth listener if supabase client is initialized
+            if (!supabase) {
+              console.warn("Supabase client not initialized. Ensure Supabase URL and Key are correct, or CDN is loaded.");
+              setAuthReady(true); // Treat as ready but no auth functionality
+              return;
+            }
+
+            const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+              console.log('Supabase Auth Event:', event, 'Session:', session);
+              if (session) {
+                setUserId(session.user.id);
+                console.log("Supabase: User session found:", session.user.id);
+              } else {
+                setUserId(null); // No active session
+                console.log("Supabase: No active user session.");
+              }
+              setAuthReady(true); // Auth listener is ready
+            });
+
+            // Check for existing session on initial load
+            supabase.auth.getSession().then(({ data: { session } }) => {
+              if (session) {
+                setUserId(session.user.id);
+                console.log("Supabase: Initial session check - user ID:", session.user.id);
+              } else {
+                console.log("Supabase: Initial session check - no session.");
+              }
+            });
+
+            return () => {
+              authListener?.unsubscribe();
+            };
+          }, []);
+
+          // Fetch data from Supabase once auth is ready
+          React.useEffect(() => {
+            // If supabase client is not initialized, fallback to dummy data.
+            if (!supabase) {
+                console.warn("Supabase client not available, using dummy data.");
+                setDogs(dummyDogs.filter(dog => dog.owner_id !== userId));
+                setBusinesses(dummyBusinesses);
+                setVetsSupplies(dummyVetsSupplies);
+                setFilteredVetsSupplies(dummyVetsSupplies);
+                setMyDogProfile({
+                  id: crypto.randomUUID(), // For UI consistency, use a client-side UUID if no real user
+                  user_id: null,
+                  name: '', breed: '', age: '', size: '', energy: '', temperament: '',
+                  photos: ['https://placehold.co/400x300/DDDDDD/666666?text=Upload+Photo'],
+                  videos: [],
+                  health_checkup: { date: '', status: '', details: '' },
+                });
+                setMyLikedDogs([]);
+                return;
+            }
+
+            if (!authReady) {
+              console.log("Supabase: Waiting for auth to be ready to fetch data.");
+              return;
+            }
+
+            const fetchPublicData = async () => {
+              // Fetch public dogs
+              const { data: fetchedDogs, error: dogsError } = await supabase
+                .from('dogs')
+                .select('*');
+              if (dogsError) {
+                console.error("Supabase: Error fetching public dogs:", dogsError);
+                setDogs(dummyDogs); // Fallback to dummy
+              } else {
+                // Filter out the current user's dog from the public list for swiping
+                const filteredForSwipe = fetchedDogs.filter(dog => dog.owner_id !== userId);
+                setDogs(filteredForSwipe.length > 0 ? filteredForSwipe : dummyDogs);
+              }
+
+              // Fetch businesses
+              const { data: fetchedBusinesses, error: bizError } = await supabase
+                .from('businesses')
+                .select('*');
+              if (bizError) {
+                console.error("Supabase: Error fetching businesses:", bizError);
+                setBusinesses(dummyBusinesses);
+              } else {
+                setBusinesses(fetchedBusinesses.length > 0 ? fetchedBusinesses : dummyBusinesses);
+              }
+
+              // Fetch vets and supplies
+              const { data: fetchedVetsSupplies, error: vetsError } = await supabase
+                .from('vets_supplies')
+                .select('*');
+              if (vetsError) {
+                console.error("Supabase: Error fetching vets/supplies:", vetsError);
+                setVetsSupplies(dummyVetsSupplies);
+                setFilteredVetsSupplies(dummyVetsSupplies);
+              } else {
+                setVetsSupplies(fetchedVetsSupplies.length > 0 ? fetchedVetsSupplies : dummyVetsSupplies);
+                setFilteredVetsSupplies(fetchedVetsSupplies.length > 0 ? fetchedVetsSupplies : dummyVetsSupplies);
+              }
+            };
+
+            const fetchPrivateData = async () => {
+              if (!userId) {
+                // If not authenticated, private data cannot be fetched due to RLS
+                setMyDogProfile({
+                  id: crypto.randomUUID(), // For UI consistency, use a client-side UUID if no real user
+                  user_id: null,
+                  name: '', breed: '', age: '', size: '', energy: '', temperament: '',
+                  photos: ['https://placehold.co/400x300/DDDDDD/666666?text=Upload+Photo'],
+                  videos: [],
+                  health_checkup: { date: '', status: '', details: '' },
+                });
+                setMyLikedDogs([]);
+                return;
+              }
+
+              // Fetch user's own dog profile
+              const { data: myDogData, error: myDogError } = await supabase
+                .from('user_dogs')
+                .select('*')
+                .eq('user_id', userId)
+                .single(); // Use .single() as there should only be one dog per user
+              if (myDogError && myDogError.code !== 'PGRST116') { // PGRST116 means no rows found
+                console.error("Supabase: Error fetching user's dog profile:", myDogError);
+              } else if (myDogData) {
+                setMyDogProfile(myDogData);
+                console.log("Supabase: Fetched user's dog profile.");
+              } else {
+                setMyDogProfile(prev => ({
+                  ...prev,
+                  id: prev.id || crypto.randomUUID(), // Keep previous ID if set, otherwise new UUID
+                  user_id: userId, // Ensure userId is set
+                  name: '', breed: '', age: '', size: '', energy: '', temperament: '',
+                  photos: ['https://placehold.co/400x300/DDDDDD/666666?text=Upload+Photo'],
+                  videos: [],
+                  health_checkup: { date: '', status: '', details: '' },
+                }));
+                console.log("Supabase: User's dog profile not found, set default.");
+              }
+
+              // Fetch user's liked dogs
+              const { data: likedDogsData, error: likedDogsError } = await supabase
+                .from('liked_dogs')
+                .select('liked_dog_id') // Select only the ID of the liked dog
+                .eq('liker_user_id', userId);
+              if (likedDogsError) {
+                console.error("Supabase: Error fetching user's liked dogs:", likedDogsError);
+              } else {
+                const likedDogIds = likedDogsData.map(item => item.liked_dog_id);
+                setMyLikedDogs(likedDogIds);
+                console.log("Supabase: Fetched user's liked dogs:", likedDogIds);
+              }
+            };
+
+            fetchPublicData();
+            fetchPrivateData();
+
+            // Optional: Initial population of dummy data if tables are empty
+            const populateInitialData = async () => {
+                // Only run this if Supabase config is valid
+                if (supabaseUrl === "YOUR_SUPABASE_URL" || supabaseAnonKey === "YOUR_SUPABASE_ANON_KEY") {
+                    console.warn("Supabase: Dummy API keys detected. Skipping initial data population.");
+                    return;
+                }
+
+                const { data: dogsCount, error: dogsCountError } = await supabase.from('dogs').select('count', { count: 'exact' });
+                if (!dogsCountError && dogsCount.count === 0) {
+                    console.log("Supabase: Populating dummy public dogs.");
+                    await supabase.from('dogs').insert(dummyDogs);
+                }
+
+                const { data: bizCount, error: bizCountError } = await supabase.from('businesses').select('count', { count: 'exact' });
+                if (!bizCountError && bizCount.count === 0) {
+                    console.log("Supabase: Populating dummy businesses.");
+                    await supabase.from('businesses').insert(dummyBusinesses);
+                }
+
+                const { data: vetsCount, error: vetsCountError } = await supabase.from('vets_supplies').select('count', { count: 'exact' });
+                if (!vetsCountError && vetsCount.count === 0) {
+                    console.log("Supabase: Populating dummy vets and supplies.");
+                    await supabase.from('vets_supplies').insert(dummyVetsSupplies);
+                }
+            };
+            populateInitialData();
+
+
+          }, [authReady, userId]);
+
+          // Handle search for vets and supplies
+          React.useEffect(() => {
+            const filtered = vetsSupplies.filter(item =>
+              item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              item.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              item.address.toLowerCase().includes(searchQuery.toLowerCase())
+            );
+            setFilteredVetsSupplies(filtered);
+          }, [searchQuery, vetsSupplies]);
+
+
+          const currentDog = dogs[currentDogIndex];
+
+          // Function to handle swiping left (Nope)
+          const swipeLeft = () => {
+            setCurrentDogIndex((prevIndex) => (prevIndex + 1) % dogs.length);
+          };
+
+          // Function to handle swiping right (Like)
+          const swipeRight = async () => {
+            if (!supabase) {
+                setAlertMessage("Supabase client not initialized. Cannot like dog.");
+                return;
+            }
+            if (!userId) {
+              setAlertMessage("You need to be logged in to like dogs! (Currently using anonymous mode for demo)");
+              return;
+            }
+            if (!currentDog || !currentDog.id) {
+                setAlertMessage("No dog selected to like.");
+                return;
+            }
+            if (currentDog.owner_id === userId) {
+                setAlertMessage("You can't like your own dog!");
+                setCurrentDogIndex((prevIndex) => (prevIndex + 1) % dogs.length);
+                return;
+            }
+
+            if (myLikedDogs.includes(currentDog.id)) {
+                setAlertMessage(`You've already liked ${currentDog.name}!`);
+                setCurrentDogIndex((prevIndex) => (prevIndex + 1) % dogs.length);
+                return;
+            }
+
+            try {
+              // Store the liked dog's ID in the user's private liked_dogs table
+              const { error } = await supabase
+                .from('liked_dogs')
+                .insert([
+                  { liker_user_id: userId, liked_dog_id: currentDog.id }
+                ]);
+
+              if (error) {
+                console.error("Supabase: Error liking dog:", error);
+                setAlertMessage("Failed to like dog. Please check Supabase RLS and try again.");
+              } else {
+                setAlertMessage(`You liked ${currentDog.name}!`);
+                console.log(`Supabase: Liked ${currentDog.name}! (ID: ${currentDog.id})`);
+                // Manually add to myLikedDogs state for immediate UI update
+                setMyLikedDogs(prev => [...prev, currentDog.id]);
+              }
+
+              setCurrentDogIndex((prevIndex) => (prevIndex + 1) % dogs.length);
+            } catch (error) {
+              console.error("Supabase: Unexpected error during like operation:", error);
+              setAlertMessage("An unexpected error occurred. Please try again.");
+            }
+          };
+
+          // Handler for updating user's dog profile form fields
+          const handleMyDogProfileChange = (e) => {
+            const { name, value } = e.target;
+            if (name.startsWith('health_checkup.')) { // Note: using snake_case for JSONB keys
+              setMyDogProfile(prev => ({
+                ...prev,
+                health_checkup: {
+                  ...prev.health_checkup,
+                  [name.split('.')[1]]: value
+                }
+              }));
+            } else {
+              setMyDogProfile(prev => ({ ...prev, [name]: value }));
+            }
+          };
+
+          // Handler for saving user's dog profile to Supabase
+          const saveMyDogProfile = async () => {
+            if (!supabase) {
+                setAlertMessage("Supabase client not initialized. Cannot save profile.");
+                return;
+            }
+            if (!userId) {
+              setAlertMessage("You need to be logged in to save your dog's profile!");
+              return;
+            }
+            if (!myDogProfile.name || !myDogProfile.breed) {
+              setAlertMessage("Please fill in your dog's name and breed.");
+              return;
+            }
+
+            // Prepare data, ensuring correct Supabase schema (snake_case for columns)
+            const dogData = {
+              user_id: userId,
+              name: myDogProfile.name,
+              breed: myDogProfile.breed,
+              age: parseInt(myDogProfile.age) || null, // Convert to int, handle empty
+              size: myDogProfile.size,
+              energy: myDogProfile.energy,
+              temperament: myDogProfile.temperament,
+              photos: myDogProfile.photos,
+              videos: myDogProfile.videos,
+              health_checkup: myDogProfile.health_checkup,
+            };
+
+            try {
+              // Try to update existing profile first
+              const { data: updateData, error: updateError } = await supabase
+                .from('user_dogs')
+                .update(dogData)
+                .eq('user_id', userId)
+                .select();
+
+              if (updateError && updateError.code !== 'PGRST116') { // PGRST116 means no rows updated
+                console.error("Supabase: Error updating user's dog profile:", updateError);
+                // If not found, try inserting
+                const { data: insertData, error: insertError } = await supabase
+                  .from('user_dogs')
+                  .insert(dogData)
+                  .select(); // Select the inserted data
+
+                if (insertError) {
+                  console.error("Supabase: Error inserting user's dog profile:", insertError);
+                  setAlertMessage("Failed to save profile. Please check Supabase RLS.");
+                  return;
+                } else {
+                    setMyDogProfile(insertData[0]); // Update state with inserted data
+                    // Also update the public dogs table
+                    await supabase.from('dogs').upsert({ ...insertData[0], owner_id: userId }, { onConflict: 'id' });
+                    setAlertMessage("Your dog's profile created successfully!");
+                }
+              } else if (updateData && updateData.length > 0) {
+                setMyDogProfile(updateData[0]); // Update state with updated data
+                // Also update the public dogs table
+                await supabase.from('dogs').upsert({ ...updateData[0], owner_id: userId }, { onConflict: 'id' });
+                setAlertMessage("Your dog's profile updated successfully!");
+              } else {
+                  // This case means update returned no rows, implies it didn't exist, so try insert
+                  const { data: insertData, error: insertError } = await supabase
+                    .from('user_dogs')
+                    .insert(dogData)
+                    .select();
+
+                  if (insertError) {
+                    console.error("Supabase: Error inserting user's dog profile:", insertError);
+                    setAlertMessage("Failed to save profile. Please check Supabase RLS.");
+                    return;
+                  } else {
+                      setMyDogProfile(insertData[0]);
+                      await supabase.from('dogs').upsert({ ...insertData[0], owner_id: userId }, { onConflict: 'id' });
+                      setAlertMessage("Your dog's profile created successfully!");
+                  }
+              }
+
+              setIsEditingMyDog(false);
+              console.log("Supabase: User's dog profile saved successfully!");
+            } catch (error) {
+              console.error("Supabase: Unexpected error saving profile:", error);
+              setAlertMessage("An unexpected error occurred while saving. Please try again.");
+            }
+          };
+
+
+          const DogProfileCard = ({ dog }) => (
+            <div className="bg-white rounded-xl shadow-lg p-6 max-w-sm mx-auto my-4 transform transition-all duration-300 hover:scale-105 card-animate">
+              <div className="relative h-64 w-full bg-gray-100 rounded-lg overflow-hidden mb-4 image-placeholder">
+                <img
+                  src={dog.photos && dog.photos[0] ? dog.photos[0] : 'https://placehold.co/400x300/CCCCCC/000?text=Dog+Image+Error'}
+                  alt={`${dog.name}`}
+                  className="w-full h-full object-cover"
+                  onError={(e) => { e.target.onerror = null; e.target.src="https://placehold.co/400x300/CCCCCC/000?text=Dog+Image+Error"; }}
+                />
+                {/* Placeholder for video icon if video exists */}
+                {dog.videos && dog.videos.length > 0 && (
+                  <div className="absolute bottom-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full text-xs">
+                    <svg className="w-4 h-4 inline-block mr-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd"></path></svg> Video
                   </div>
-                ))
-              ) : (
-                <p className="text-gray-600 text-center col-span-full">No results found for your search.</p>
-              )}
-            </div>
-          </section>
-        )}
-
-        {view === 'profile' && (
-          <section className="text-center py-8">
-            <h2 className="text-4xl font-extrabold text-gray-800 mb-6">Your Doggie Profile</h2>
-            {!authReady ? (
-              <p className="text-gray-600 text-lg">Initializing authentication...</p>
-            ) : (
-              <div className="mt-8 p-6 bg-white rounded-xl shadow-lg max-w-md mx-auto card-animate">
-                {isEditingMyDog ? (
-                  <>
-                    <h3 className="text-2xl font-semibold text-gray-800 mb-4">Edit Your Dog's Profile</h3>
-                    {!userId && (
-                         <p className="text-red-600 text-sm mb-4">
-                            You must be logged in to save your profile.
-                            (This demo does not include a login/signup UI, for now, just view.)
-                         </p>
-                    )}
-                    <div className="space-y-4 text-left">
-                      <div>
-                        <label htmlFor="name" className="block text-sm font-medium text-gray-700">Dog's Name</label>
-                        <input
-                          type="text"
-                          id="name"
-                          name="name"
-                          value={myDogProfile.name}
-                          onChange={handleMyDogProfileChange}
-                          className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                          placeholder="e.g., Sparky"
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="breed" className="block text-sm font-medium text-gray-700">Breed</label>
-                        <input
-                          type="text"
-                          id="breed"
-                          name="breed"
-                          value={myDogProfile.breed}
-                          onChange={handleMyDogProfileChange}
-                          className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                          placeholder="e.g., Labrador"
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="age" className="block text-sm font-medium text-gray-700">Age (Years)</label>
-                        <input
-                          type="number"
-                          id="age"
-                          name="age"
-                          value={myDogProfile.age}
-                          onChange={handleMyDogProfileChange}
-                          className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                          placeholder="e.g., 2"
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="size" className="block text-sm font-medium text-gray-700">Size</label>
-                        <select
-                          id="size"
-                          name="size"
-                          value={myDogProfile.size}
-                          onChange={handleMyDogProfileChange}
-                          className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                        >
-                          <option value="">Select Size</option>
-                          <option value="Small">Small</option>
-                          <option value="Medium">Medium</option>
-                          <option value="Large">Large</option>
-                          <option value="Giant">Giant</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label htmlFor="energy" className="block text-sm font-medium text-gray-700">Energy Level</label>
-                        <select
-                          id="energy"
-                          name="energy"
-                          value={myDogProfile.energy}
-                          onChange={handleMyDogProfileChange}
-                          className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                        >
-                          <option value="">Select Energy</option>
-                          <option value="Low">Low</option>
-                          <option value="Medium">Medium</option>
-                          <option value="High">High</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label htmlFor="temperament" className="block text-sm font-medium text-gray-700">Temperament</label>
-                        <textarea
-                          id="temperament"
-                          name="temperament"
-                          value={myDogProfile.temperament}
-                          onChange={handleMyDogProfileChange}
-                          rows="3"
-                          className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                          placeholder="e.g., Playful, loves kids, a bit shy with new dogs."
-                        ></textarea>
-                      </div>
-                      {/* Placeholder for Photo/Video Upload */}
-                      <div className="text-center mt-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Dog Photos/Videos</label>
-                        <div className="flex justify-center items-center h-32 w-full bg-gray-100 rounded-md image-placeholder">
-                          <span className="text-center">Click to upload (Coming Soon!)</span>
-                        </div>
-                        {myDogProfile.photos && myDogProfile.photos[0] && myDogProfile.photos[0] !== 'https://placehold.co/400x300/DDDDDD/666666?text=Upload+Photo' && (
-                            <img src={myDogProfile.photos[0]} alt="Dog Profile" className="mt-2 mx-auto max-w-full h-auto rounded-md" />
-                        )}
-                      </div>
-
-                      <h4 className="text-lg font-semibold text-gray-800 mt-6 mb-2">Health Checkup</h4>
-                      <div>
-                        <label htmlFor="health_checkup.date" className="block text-sm font-medium text-gray-700">Last Checkup Date</label>
-                        <input
-                          type="date"
-                          id="health_checkup.date"
-                          name="health_checkup.date"
-                          value={myDogProfile.health_checkup?.date || ''}
-                          onChange={handleMyDogProfileChange}
-                          className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="health_checkup.status" className="block text-sm font-medium text-gray-700">Health Status</label>
-                        <input
-                          type="text"
-                          id="health_checkup.status"
-                          name="health_checkup.status"
-                          value={myDogProfile.health_checkup?.status || ''}
-                          onChange={handleMyDogProfileChange}
-                          className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                          placeholder="e.g., Healthy, Vaccinations up-to-date"
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="health_checkup.details" className="block text-sm font-medium text-gray-700">Health Details</label>
-                        <textarea
-                          id="health_checkup.details"
-                          name="health_checkup.details"
-                          value={myDogProfile.health_checkup?.details || ''}
-                          onChange={handleMyDogProfileChange}
-                          rows="4"
-                          className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                          placeholder="e.g., Annual checkup, clear bill of health. All vaccinations current (Rabies, DHPP). No known allergies."
-                        ></textarea>
-                      </div>
-
-                    </div>
-                    <div className="flex justify-between mt-6 space-x-4">
-                      <button
-                        onClick={saveMyDogProfile}
-                        className="flex-1 btn-main bg-green-500 hover:bg-green-600"
-                        disabled={!userId} // Disable save if not logged in
-                      >
-                        Save Profile
-                      </button>
-                      <button
-                        onClick={() => setIsEditingMyDog(false)}
-                        className="flex-1 btn-main bg-gray-400 hover:bg-gray-500"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <h3 className="text-2xl font-semibold text-gray-800 mb-4">Your Dog's Current Profile</h3>
-                    {myDogProfile.name ? (
-                      <div className="space-y-3 text-left">
-                         <img
-                            src={myDogProfile.photos && myDogProfile.photos[0] ? myDogProfile.photos[0] : 'https://placehold.co/400x300/CCCCCC/000?text=No+Photo'}
-                            alt={`${myDogProfile.name}`}
-                            className="w-full h-48 object-cover rounded-lg mb-4 image-placeholder"
-                            onError={(e) => { e.target.onerror = null; e.target.src="https://placehold.co/400x300/CCCCCC/000?text=No+Photo"; }}
-                        />
-                        <p><span className="font-semibold">Name:</span> {myDogProfile.name}</p>
-                        <p><span className="font-semibold">Breed:</span> {myDogProfile.breed}</p>
-                        <p><span className="font-semibold">Age:</span> {myDogProfile.age} years</p>
-                        <p><span className="font-semibold">Size:</span> {myDogProfile.size}</p>
-                        <p><span className="font-semibold">Energy:</span> {myDogProfile.energy}</p>
-                        <p><span className="font-semibold">Temperament:</span> {myDogProfile.temperament}</p>
-                        <h4 className="font-semibold mt-4">Health Checkup:</h4>
-                        {myDogProfile.health_checkup && myDogProfile.health_checkup.date ? (
-                            <>
-                                <p><span className="font-semibold text-sm">Last Checkup:</span> {myDogProfile.health_checkup.date}</p>
-                                <p><span className="font-semibold text-sm">Status:</span> {myDogProfile.health_checkup.status}</p>
-                                <p><span className="font-semibold text-sm">Details:</span> {myDogProfile.health_checkup.details}</p>
-                            </>
-                        ) : (
-                            <p className="text-sm italic text-gray-500">No health details recorded.</p>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-lg text-gray-700">
-                        You haven't created your dog's profile yet!
-                      </p>
-                    )}
-                    <button
-                      onClick={() => setIsEditingMyDog(true)}
-                      className="btn-main bg-purple-500 hover:bg-purple-600 mt-6"
-                    >
-                      {myDogProfile.name ? "Edit My Dog's Profile" : "Set Up My Dog's Profile"}
-                    </button>
-                  </>
                 )}
               </div>
-            )}
-            <div className="mt-8 p-6 bg-white rounded-xl shadow-lg max-w-md mx-auto card-animate">
-                <h3 className="text-2xl font-semibold text-gray-800 mb-4">Dogs You've Liked</h3>
-                {myLikedDogs.length > 0 ? (
-                    <ul className="list-disc list-inside text-left text-gray-700 space-y-2">
-                        {myLikedDogs.map(likedDogId => {
-                            const dog = dogs.find(d => d.id === likedDogId);
-                            return dog ? <li key={likedDogId}>{dog.name} ({dog.breed})</li> : <li key={likedDogId}>Unknown Dog (ID: {likedDogId})</li>;
-                        })}
-                    </ul>
-                ) : (
-                    <p className="text-gray-600">You haven't liked any dogs yet. Start swiping on the Home screen!</p>
-                )}
-                <p className="text-sm text-gray-500 mt-4 italic">
-                    For private data (like liked dogs), you need to be logged in for it to persist and load.
-                </p>
+              <h2 className="text-3xl font-bold text-center text-gray-800 mb-2">{dog.name}</h2>
+              <p className="text-gray-600 text-center text-lg mb-4">{dog.breed}, {dog.age} years old</p>
+
+              <div className="grid grid-cols-2 gap-3 text-sm text-gray-700 mb-4">
+                <div className="flex items-center">
+                  <svg className="w-5 h-5 text-indigo-500 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M7 3a1 1 0 00-1 1v1a1 1 0 002 0V4a1 1 0 00-1-1zM9 8a1 1 0 00-1 1v1a1 1 0 002 0V9a1 1 0 00-1-1zM11 3a1 1 0 00-1 1v1a1 1 0 002 0V4a1 1 0 00-1-1z" /><path fillRule="evenodd" d="M12 2H8a2 2 0 00-2 2v2H5a2 2 0 00-2 2v4a2 2 0 002 2h2v2a2 2 0 002 2h4a2 2 0 002-2v-2h2a2 2 0 002-2V8a2 2 0 00-2-2h-1V4a2 2 0 00-2-2zm-5 6a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H8a1 1 0 01-1-1V8z" clipRule="evenodd"></path></svg>
+                  Size: {dog.size}
+                </div>
+                <div className="flex items-center">
+                  <svg className="w-5 h-5 text-pink-500 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17.555 13.555A8.001 8.001 0 0013 6a8.001 8.001 0 00-4.555 7.555L2 20h16l-2.445-6.445z" /></svg>
+                  Energy: {dog.energy}
+                </div>
+                <div className="col-span-2 flex items-center">
+                  <svg className="w-5 h-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"></path></svg>
+                  Temperament: {dog.temperament}
+                </div>
+              </div>
+
+              <div className="flex justify-center mt-6">
+                <button
+                  onClick={() => setShowHealthModal(true)}
+                  className="btn-main bg-blue-500 hover:bg-blue-600"
+                >
+                  View Health Checkup
+                </button>
+              </div>
             </div>
-          </section>
-        )}
-      </main>
+          );
 
-      <footer className="w-full bg-white shadow-inner py-4 px-6 mt-8 text-center text-gray-600 text-sm rounded-t-xl">
-        &copy; {new Date().getFullYear()} Doggie Date App. All rights reserved.
-      </footer>
-    </div>
-  );
-};
+          const HealthCheckupModal = ({ dog, onClose }) => (
+            <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full relative modal-animate">
+                <button
+                  onClick={onClose}
+                  className="absolute top-3 right-3 text-gray-500 hover:text-gray-800 text-2xl font-bold"
+                >
+                  &times;
+                </button>
+                <h3 className="text-2xl font-bold text-gray-800 mb-4 text-center">Health Checkup for {dog.name}</h3>
+                {dog.health_checkup && dog.health_checkup.date ? (
+                  <>
+                    <p className="text-gray-700 mb-2">
+                      <span className="font-semibold">Last Checkup:</span> {dog.health_checkup.date}
+                    </p>
+                    <p className="text-gray-700 mb-2">
+                      <span className="font-semibold">Status:</span> {dog.health_checkup.status}
+                    </p>
+                    <p className="text-gray-700 mb-4">
+                      <span className="font-semibold">Details:</span> {dog.health_checkup.details}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-gray-700 mb-4 text-center">No health checkup details available.</p>
+                )}
+                <p className="text-sm text-gray-500 text-center italic">
+                  Disclaimer: Health information is provided by owners and should be verified independently.
+                </p>
+              </div>
+            </div>
+          );
 
-export default App;
+          return (
+            <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 font-inter text-gray-900 flex flex-col items-center">
+              {/* Tailwind CSS and Inter Font are loaded in the head, no need for redundant @import here */}
+
+              {/* Header and Navigation */}
+              <header className="w-full bg-white shadow-md py-4 px-6 flex flex-col sm:flex-row justify-between items-center rounded-b-xl z-10">
+                <h1 className="text-3xl font-bold text-indigo-700 mb-2 sm:mb-0">Doggie Date</h1>
+                <nav className="flex space-x-4">
+                  <button
+                    onClick={() => setView('home')}
+                    className={`px-4 py-2 rounded-full font-semibold transition-all duration-200 ${
+                      view === 'home' ? 'bg-indigo-500 text-white shadow-lg' : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    Home
+                  </button>
+                  <button
+                    onClick={() => setView('businesses')}
+                    className={`px-4 py-2 rounded-full font-semibold transition-all duration-200 ${
+                      view === 'businesses' ? 'bg-indigo-500 text-white shadow-lg' : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    Businesses
+                  </button>
+                  <button
+                    onClick={() => setView('vets')}
+                    className={`px-4 py-2 rounded-full font-semibold transition-all duration-200 ${
+                      view === 'vets' ? 'bg-indigo-500 text-white shadow-lg' : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    Vets & Supplies
+                  </button>
+                  <button
+                    onClick={() => setView('profile')}
+                    className={`px-4 py-2 rounded-full font-semibold transition-all duration-200 ${
+                      view === 'profile' ? 'bg-indigo-500 text-white shadow-lg' : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    My Profile
+                  </button>
+                </nav>
+              </header>
+
+              {/* User ID Display */}
+              {userId && (
+                <div className="bg-yellow-100 text-yellow-800 text-sm p-2 rounded-md mt-4 shadow-sm">
+                  Your User ID: <span className="font-mono break-all">{userId}</span>
+                </div>
+              )}
+              {!userId && authReady && (
+                <div className="bg-red-100 text-red-800 text-sm p-2 rounded-md mt-4 shadow-sm">
+                  You are not logged in. Profile data cannot be saved.
+                  <p className="text-xs italic mt-1">
+                    (For full functionality, you'll need to implement Supabase email/password auth
+                    and ensure the Supabase client library is loaded globally, e.g., via CDN.)
+                  </p>
+                </div>
+              )}
+
+              {/* Custom Alert Modal */}
+              {alertMessage && <CustomAlertModal message={alertMessage} onClose={() => setAlertMessage(null)} />}
+
+              <main className="flex-grow w-full max-w-4xl p-4">
+                {view === 'home' && (
+                  <section className="text-center py-8">
+                    <h2 className="text-4xl font-extrabold text-gray-800 mb-6">Find Doggie Playdates!</h2>
+                    {dogs.length > 0 && currentDog ? (
+                      <>
+                        <DogProfileCard dog={currentDog} />
+                        <div className="flex justify-center space-x-6 mt-8">
+                          <button
+                            onClick={swipeLeft}
+                            className="flex items-center justify-center bg-red-500 hover:bg-red-600 text-white text-xl p-4 rounded-full shadow-lg transition-all duration-300 transform hover:scale-110 focus:outline-none focus:ring-4 focus:ring-red-300"
+                            aria-label="Nope"
+                          >
+                            <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd"></path></svg>
+                          </button>
+                          <button
+                            onClick={swipeRight}
+                            className="flex items-center justify-center bg-green-500 hover:bg-green-600 text-white text-xl p-4 rounded-full shadow-lg transition-all duration-300 transform hover:scale-110 focus:outline-none focus:ring-4 focus:ring-green-300"
+                            aria-label="Like"
+                          >
+                            <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" clipRule="evenodd"></path></svg>
+                          </button>
+                        </div>
+                        {showHealthModal && currentDog && (
+                          <HealthCheckupModal dog={currentDog} onClose={() => setShowHealthModal(false)} />
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-gray-600 text-lg">Loading dog profiles or no dogs available for swiping...</p>
+                    )}
+                  </section>
+                )}
+
+                {view === 'businesses' && (
+                  <section className="py-8">
+                    <h2 className="text-4xl font-extrabold text-gray-800 text-center mb-8">Local Dog Businesses</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {businesses.map((business) => (
+                        <div
+                          key={business.id}
+                          className={`bg-white rounded-xl shadow-lg p-6 transition-all duration-300 transform hover:scale-105 card-animate ${
+                            business.is_ad ? 'border-4 border-yellow-400 ring-4 ring-yellow-200' : 'border border-gray-200'
+                          }`}
+                        >
+                          <h3 className="text-xl font-bold text-indigo-700 mb-2">{business.name}</h3>
+                          <p className="text-gray-600 mb-1">Type: {business.type}</p>
+                          <p className="text-gray-600 mb-1">Address: {business.address}</p>
+                          <p className="text-gray-600 mb-4">Phone: {business.phone}</p>
+                          <p className="text-gray-700 text-sm">{business.description}</p>
+                          {business.is_ad && (
+                            <div className="mt-4 text-center text-yellow-700 font-semibold text-sm bg-yellow-100 p-2 rounded-full">
+                              ✨ Advertised Spot ✨
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {view === 'vets' && (
+                  <section className="py-8">
+                    <h2 className="text-4xl font-extrabold text-gray-800 text-center mb-8">Local Vets & Pet Supplies</h2>
+                    <div className="mb-6 flex justify-center">
+                      <input
+                        type="text"
+                        placeholder="Search vets or supplies..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full max-w-md p-3 border border-gray-300 rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {filteredVetsSupplies.length > 0 ? (
+                        filteredVetsSupplies.map((item) => (
+                          <div key={item.id} className="bg-white rounded-xl shadow-lg p-6 border border-gray-200 transition-all duration-300 transform hover:scale-105 card-animate">
+                            <h3 className="text-xl font-bold text-indigo-700 mb-2">{item.name}</h3>
+                            <p className="text-gray-600 mb-1">Type: {item.type}</p>
+                            <p className="text-gray-600 mb-1">Address: {item.address}</p>
+                            <p className="text-gray-600 mb-1">Phone: {item.phone}</p>
+                            <p className="text-gray-700 text-sm mt-2">{item.description}</p>
+                            {item.hours && <p className="text-gray-700 text-sm mt-1">Hours: {item.hours}</p>}
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-gray-600 text-center col-span-full">No results found for your search.</p>
+                      )}
+                    </div>
+                  </section>
+                )}
+
+                {view === 'profile' && (
+                  <section className="text-center py-8">
+                    <h2 className="text-4xl font-extrabold text-gray-800 mb-6">Your Doggie Profile</h2>
+                    {!authReady ? (
+                      <p className="text-gray-600 text-lg">Initializing authentication...</p>
+                    ) : (
+                      <div className="mt-8 p-6 bg-white rounded-xl shadow-lg max-w-md mx-auto card-animate">
+                        {isEditingMyDog ? (
+                          <>
+                            <h3 className="text-2xl font-semibold text-gray-800 mb-4">Edit Your Dog's Profile</h3>
+                            {!userId && (
+                                 <p className="text-red-600 text-sm mb-4">
+                                    You must be logged in to save your profile.
+                                    (This demo does not include a login/signup UI, for now, just view.)
+                                 </p>
+                            )}
+                            <div className="space-y-4 text-left">
+                              <div>
+                                <label htmlFor="name" className="block text-sm font-medium text-gray-700">Dog's Name</label>
+                                <input
+                                  type="text"
+                                  id="name"
+                                  name="name"
+                                  value={myDogProfile.name}
+                                  onChange={handleMyDogProfileChange}
+                                  className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                  placeholder="e.g., Sparky"
+                                />
+                              </div>
+                              <div>
+                                <label htmlFor="breed" className="block text-sm font-medium text-gray-700">Breed</label>
+                                <input
+                                  type="text"
+                                  id="breed"
+                                  name="breed"
+                                  value={myDogProfile.breed}
+                                  onChange={handleMyDogProfileChange}
+                                  className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                  placeholder="e.g., Labrador"
+                                />
+                              </div>
+                              <div>
+                                <label htmlFor="age" className="block text-sm font-medium text-gray-700">Age (Years)</label>
+                                <input
+                                  type="number"
+                                  id="age"
+                                  name="age"
+                                  value={myDogProfile.age}
+                                  onChange={handleMyDogProfileChange}
+                                  className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                  placeholder="e.g., 2"
+                                />
+                              </div>
+                              <div>
+                                <label htmlFor="size" className="block text-sm font-medium text-gray-700">Size</label>
+                                <select
+                                  id="size"
+                                  name="size"
+                                  value={myDogProfile.size}
+                                  onChange={handleMyDogProfileChange}
+                                  className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                >
+                                  <option value="">Select Size</option>
+                                  <option value="Small">Small</option>
+                                  <option value="Medium">Medium</option>
+                                  <option value="Large">Large</option>
+                                  <option value="Giant">Giant</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label htmlFor="energy" className="block text-sm font-medium text-gray-700">Energy Level</label>
+                                <select
+                                  id="energy"
+                                  name="energy"
+                                  value={myDogProfile.energy}
+                                  onChange={handleMyDogProfileChange}
+                                  className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                >
+                                  <option value="">Select Energy</option>
+                                  <option value="Low">Low</option>
+                                  <option value="Medium">Medium</option>
+                                  <option value="High">High</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label htmlFor="temperament" className="block text-sm font-medium text-gray-700">Temperament</label>
+                                <textarea
+                                  id="temperament"
+                                  name="temperament"
+                                  value={myDogProfile.temperament}
+                                  onChange={handleMyDogProfileChange}
+                                  rows="3"
+                                  className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                  placeholder="e.g., Playful, loves kids, a bit shy with new dogs."
+                                ></textarea>
+                              </div>
+                              {/* Placeholder for Photo/Video Upload */}
+                              <div className="text-center mt-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Dog Photos/Videos</label>
+                                <div className="flex justify-center items-center h-32 w-full bg-gray-100 rounded-md image-placeholder">
+                                  <span className="text-center">Click to upload (Coming Soon!)</span>
+                                </div>
+                                {myDogProfile.photos && myDogProfile.photos[0] && myDogProfile.photos[0] !== 'https://placehold.co/400x300/DDDDDD/666666?text=Upload+Photo' && (
+                                    <img src={myDogProfile.photos[0]} alt="Dog Profile" className="mt-2 mx-auto max-w-full h-auto rounded-md" />
+                                )}
+                              </div>
+
+                              <h4 className="text-lg font-semibold text-gray-800 mt-6 mb-2">Health Checkup</h4>
+                              <div>
+                                <label htmlFor="health_checkup.date" className="block text-sm font-medium text-gray-700">Last Checkup Date</label>
+                                <input
+                                  type="date"
+                                  id="health_checkup.date"
+                                  name="health_checkup.date"
+                                  value={myDogProfile.health_checkup?.date || ''}
+                                  onChange={handleMyDogProfileChange}
+                                  className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                />
+                              </div>
+                              <div>
+                                <label htmlFor="health_checkup.status" className="block text-sm font-medium text-gray-700">Health Status</label>
+                                <input
+                                  type="text"
+                                  id="health_checkup.status"
+                                  name="health_checkup.status"
+                                  value={myDogProfile.health_checkup?.status || ''}
+                                  onChange={handleMyDogProfileChange}
+                                  className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                  placeholder="e.g., Healthy, Vaccinations up-to-date"
+                                />
+                              </div>
+                              <div>
+                                <label htmlFor="health_checkup.details" className="block text-sm font-medium text-gray-700">Health Details</label>
+                                <textarea
+                                  id="health_checkup.details"
+                                  name="health_checkup.details"
+                                  value={myDogProfile.health_checkup?.details || ''}
+                                  onChange={handleMyDogProfileChange}
+                                  rows="4"
+                                  className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                  placeholder="e.g., Annual checkup, clear bill of health. All vaccinations current (Rabies, DHPP). No known allergies."
+                                ></textarea>
+                              </div>
+
+                            </div>
+                            <div className="flex justify-between mt-6 space-x-4">
+                              <button
+                                onClick={saveMyDogProfile}
+                                className="flex-1 btn-main bg-green-500 hover:bg-green-600"
+                                disabled={!userId} // Disable save if not logged in
+                              >
+                                Save Profile
+                              </button>
+                              <button
+                                onClick={() => setIsEditingMyDog(false)}
+                                className="flex-1 btn-main bg-gray-400 hover:bg-gray-500"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <h3 className="text-2xl font-semibold text-gray-800 mb-4">Your Dog's Current Profile</h3>
+                            {myDogProfile.name ? (
+                              <div className="space-y-3 text-left">
+                                 <img
+                                    src={myDogProfile.photos && myDogProfile.photos[0] ? myDogProfile.photos[0] : 'https://placehold.co/400x300/CCCCCC/000?text=No+Photo'}
+                                    alt={`${myDogProfile.name}`}
+                                    className="w-full h-48 object-cover rounded-lg mb-4 image-placeholder"
+                                    onError={(e) => { e.target.onerror = null; e.target.src="https://placehold.co/400x300/CCCCCC/000?text=No+Photo"; }}
+                                />
+                                <p><span className="font-semibold">Name:</span> {myDogProfile.name}</p>
+                                <p><span className="font-semibold">Breed:</span> {myDogProfile.breed}</p>
+                                <p><span className="font-semibold">Age:</span> {myDogProfile.age} years</p>
+                                <p><span className="font-semibold">Size:</span> {myDogProfile.size}</p>
+                                <p><span className="font-semibold">Energy:</span> {myDogProfile.energy}</p>
+                                <p><span className="font-semibold">Temperament:</span> {myDogProfile.temperament}</p>
+                                <h4 className="font-semibold mt-4">Health Checkup:</h4>
+                                {myDogProfile.health_checkup && myDogProfile.health_checkup.date ? (
+                                    <>
+                                        <p><span className="font-semibold text-sm">Last Checkup:</span> {myDogProfile.health_checkup.date}</p>
+                                        <p><span className="font-semibold text-sm">Status:</span> {myDogProfile.health_checkup.status}</p>
+                                        <p><span className="font-semibold text-sm">Details:</span> {myDogProfile.health_checkup.details}</p>
+                                    </>
+                                ) : (
+                                    <p className="text-sm italic text-gray-500">No health details recorded.</p>
+                                )}
+                              </div>
+                            ) : (
+                              <p className="text-lg text-gray-700">
+                                You haven't created your dog's profile yet!
+                              </p>
+                            )}
+                            <button
+                              onClick={() => setIsEditingMyDog(true)}
+                              className="btn-main bg-purple-500 hover:bg-purple-600 mt-6"
+                            >
+                              {myDogProfile.name ? "Edit My Dog's Profile" : "Set Up My Dog's Profile"}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                    <div className="mt-8 p-6 bg-white rounded-xl shadow-lg max-w-md mx-auto card-animate">
+                        <h3 className="text-2xl font-semibold text-gray-800 mb-4">Dogs You've Liked</h3>
+                        {myLikedDogs.length > 0 ? (
+                            <ul className="list-disc list-inside text-left text-gray-700 space-y-2">
+                                {myLikedDogs.map(likedDogId => {
+                                    const dog = dogs.find(d => d.id === likedDogId);
+                                    return dog ? <li key={likedDogId}>{dog.name} ({dog.breed})</li> : <li key={likedDogId}>Unknown Dog (ID: {likedDogId})</li>;
+                                })}
+                            </ul>
+                        ) : (
+                            <p className="text-gray-600">You haven't liked any dogs yet. Start swiping on the Home screen!</p>
+                        )}
+                        <p className="text-sm text-gray-500 mt-4 italic">
+                            For private data (like liked dogs), you need to be logged in for it to persist and load.
+                        </p>
+                    </div>
+                  </section>
+                )}
+              </main>
+
+              <footer className="w-full bg-white shadow-inner py-4 px-6 mt-8 text-center text-gray-600 text-sm rounded-t-xl">
+                &copy; {new Date().getFullYear()} Doggie Date App. All rights reserved.
+              </footer>
+            </div>
+          );
+        };
+
+        // Render the React app
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(React.createElement(App, null));
+
+    </script>
+</body>
+</html>
