@@ -1,4 +1,4 @@
-# Doggie Date App
+# Doggie Date 
 
 ## Overview
 Doggie Date is a modern web application designed for dog owners to connect with other local dog lovers for playdates. Inspired by popular dating apps, it provides a fun and intuitive way to discover compatible canine companions and their human counterparts. The app also integrates features for finding local pet businesses, veterinarians, and pet supply stores, making it a comprehensive resource for the dog community.
